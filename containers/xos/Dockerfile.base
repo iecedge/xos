@@ -27,9 +27,37 @@ RUN apt-get update && apt-get install -y \
     python-pip \
     software-properties-common \
     sshpass \
- && rm -rf /var/lib/apt/lists/* \
- && mkdir /var/xos \
- && pip freeze > /var/xos/pip_freeze_apt_`date -u +%Y%m%dT%H%M%S`
+    git \
+    libpcap-dev \
+    libffi-dev \
+    python-dev
+
+
+# Install Go
+RUN export aarch=`dpkg --print-architecture` \
+    && export gotar=go1.10.1.linux-${aarch}.tar.gz \
+    && curl -O https://storage.googleapis.com/golang/$gotar \
+    && tar -xvf $gotar \
+    && mv go /usr/local \
+    && rm $gotar
+
+# Build filebeats
+RUN export PATH=$PATH:/usr/local/go/bin \
+    && go get github.com/elastic/beats/... \
+    && cd ~/go/src/github.com/elastic/beats/filebeat/ \
+    && ls \
+    && git checkout "v6.1.1" \
+    && GOARCH=$aarch go build \
+    && cp filebeat /usr/bin \
+    && cp ~/go/src/github.com/elastic/beats/dev-tools/packer/platforms/debian/init.j2 /etc/init.d/filebeat \
+    && sed -i 's/{{.beat_pkg_name}}/filebeat/g' /etc/init.d/filebeat \
+    && sed -i 's/{{.beat_name}}/filebeat/g' /etc/init.d/filebeat \
+    && sed -i 's/{{.beat_description}}/sends log files to Elastic Search/g' /etc/init.d/filebeat \
+    && update-rc.d filebeat defaults 95 10 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /var/xos
+
+RUN pip freeze > /var/xos/pip_freeze_apt_`date -u +%Y%m%dT%H%M%S`
 
 # Install python packages with pip
 # Upgrade methodology - pip_requested.txt is the manually generated list of pip
