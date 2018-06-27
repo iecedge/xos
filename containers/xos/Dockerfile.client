@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# xosproject/xos-client
-FROM xosproject/xos-libraries:candidate
+# cachengo/xos-client
+FROM cachengo/xos-libraries:2.0.0
 
 # Install XOS client
 COPY xos/xos_client /tmp/xos_client

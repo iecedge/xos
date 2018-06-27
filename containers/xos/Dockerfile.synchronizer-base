@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# xosproject/xos-synchronizer-base
-FROM xosproject/xos-client:candidate
+# cachengo/xos-synchronizer-base
+FROM cachengo/xos-client:2.0.0
 
 COPY xos/synchronizers/new_base /opt/xos/synchronizers/new_base
 COPY xos/xos/logger.py /opt/xos/xos/logger.py
