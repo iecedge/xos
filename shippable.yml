@@ -1,0 +1,44 @@
+language: python
+
+branches:
+  only:
+    - master
+
+integrations:
+  hub:
+    - integrationName: docker_registry
+      type: dockerRegistryLogin
+
+build:
+
+  ci:
+    - cd containers/xos
+    - docker build -f Dockerfile.base -t xosproject/xos-base:candidate .
+    - cd ../..
+    - docker build -f containers/xos/Dockerfile.libraries -t xosproject/xos-libraries:candidate .
+    - docker build -f containers/xos/Dockerfile.xos-core -t xosproject/xos-core:candidate .
+    - git clone https://github.com/opencord/chameleon.git -b master ./tmp.chameleon
+    - docker build -f containers/chameleon/Dockerfile.chameleon -t xosproject/chameleon:candidate .
+    - rm -r tmp.chameleon
+    - git clone https://github.com/opencord/chameleon.git -b master ./containers/xos/tmp.chameleon
+    - docker build -f containers/xos/Dockerfile.client -t xosproject/xos-client:candidate .
+    - docker build -f containers/xos/Dockerfile.synchronizer-base -t xosproject/xos-synchronizer-base:candidate .
+
+
+  post_ci:
+    - export IMAGE_TAG=master
+    - export AARCH=`uname -m`
+    - docker tag xosproject/xos-base:candidate cachengo/xos-base-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-core:candidate cachengo/xos-core-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-libraries:candidate cachengo/xos-libraries-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/chameleon:candidate cachengo/chameleon-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-client:candidate cachengo/xos-client-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-synchronizer-base:candidate cachengo/xos-synchronizer-base-$AARCH:$IMAGE_TAG
+    - docker push cachengo/xos-base-$AARCH:$IMAGE_TAG
+    - docker push cachengo/xos-core-$AARCH:$IMAGE_TAG
+    - docker push cachengo/xos-libraries-$AARCH:$IMAGE_TAG
+    - docker push cachengo/chameleon-$AARCH:$IMAGE_TAG
+    - docker push cachengo/xos-client-$AARCH:$IMAGE_TAG
+    - docker push cachengo/xos-synchronizer-base-$AARCH:$IMAGE_TAG
+
+
