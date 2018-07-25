@@ -12,7 +12,7 @@ integrations:
 build:
 
   ci:
-    - export IMAGE_TAG==$(cat VERSION)
+    - export IMAGE_TAG=$(cat VERSION)
     - cd containers/xos
     - docker build -f Dockerfile.base -t xosproject/xos-base:$IMAGE_TAG .
     - cd ../..
@@ -27,7 +27,7 @@ build:
 
 
   post_ci:
-    - export IMAGE_TAG==$(cat VERSION)
+    - export IMAGE_TAG=$(cat VERSION)
     - export AARCH=`uname -m`
     - docker tag xosproject/xos-base:$IMAGE_TAG cachengo/xos-base-$AARCH:$IMAGE_TAG
     - docker tag xosproject/xos-core:$IMAGE_TAG cachengo/xos-core-$AARCH:$IMAGE_TAG
