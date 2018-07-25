@@ -12,28 +12,29 @@ integrations:
 build:
 
   ci:
+    - export IMAGE_TAG==$(cat VERSION)
     - cd containers/xos
-    - docker build -f Dockerfile.base -t xosproject/xos-base:candidate .
+    - docker build -f Dockerfile.base -t xosproject/xos-base:$IMAGE_TAG .
     - cd ../..
-    - docker build -f containers/xos/Dockerfile.libraries -t xosproject/xos-libraries:candidate .
-    - docker build -f containers/xos/Dockerfile.xos-core -t xosproject/xos-core:candidate .
+    - docker build -f containers/xos/Dockerfile.libraries -t xosproject/xos-libraries:$IMAGE_TAG .
+    - docker build -f containers/xos/Dockerfile.xos-core -t xosproject/xos-core:$IMAGE_TAG .
     - git clone https://github.com/opencord/chameleon.git -b master ./tmp.chameleon
-    - docker build -f containers/chameleon/Dockerfile.chameleon -t xosproject/chameleon:candidate .
+    - docker build -f containers/chameleon/Dockerfile.chameleon -t xosproject/chameleon:$IMAGE_TAG .
     - rm -r tmp.chameleon
     - git clone https://github.com/opencord/chameleon.git -b master ./containers/xos/tmp.chameleon
-    - docker build -f containers/xos/Dockerfile.client -t xosproject/xos-client:candidate .
-    - docker build -f containers/xos/Dockerfile.synchronizer-base -t xosproject/xos-synchronizer-base:candidate .
+    - docker build -f containers/xos/Dockerfile.client -t xosproject/xos-client:$IMAGE_TAG .
+    - docker build -f containers/xos/Dockerfile.synchronizer-base -t xosproject/xos-synchronizer-base:$IMAGE_TAG .
 
 
   post_ci:
-    - export IMAGE_TAG=master
+    - export IMAGE_TAG==$(cat VERSION)
     - export AARCH=`uname -m`
-    - docker tag xosproject/xos-base:candidate cachengo/xos-base-$AARCH:$IMAGE_TAG
-    - docker tag xosproject/xos-core:candidate cachengo/xos-core-$AARCH:$IMAGE_TAG
-    - docker tag xosproject/xos-libraries:candidate cachengo/xos-libraries-$AARCH:$IMAGE_TAG
-    - docker tag xosproject/chameleon:candidate cachengo/chameleon-$AARCH:$IMAGE_TAG
-    - docker tag xosproject/xos-client:candidate cachengo/xos-client-$AARCH:$IMAGE_TAG
-    - docker tag xosproject/xos-synchronizer-base:candidate cachengo/xos-synchronizer-base-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-base:$IMAGE_TAG cachengo/xos-base-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-core:$IMAGE_TAG cachengo/xos-core-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-libraries:$IMAGE_TAG cachengo/xos-libraries-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/chameleon:$IMAGE_TAG cachengo/chameleon-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-client:$IMAGE_TAG cachengo/xos-client-$AARCH:$IMAGE_TAG
+    - docker tag xosproject/xos-synchronizer-base:$IMAGE_TAG cachengo/xos-synchronizer-base-$AARCH:$IMAGE_TAG
     - docker push cachengo/xos-base-$AARCH:$IMAGE_TAG
     - docker push cachengo/xos-core-$AARCH:$IMAGE_TAG
     - docker push cachengo/xos-libraries-$AARCH:$IMAGE_TAG
