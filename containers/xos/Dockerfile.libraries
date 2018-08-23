@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-FROM cachengo/xos-base:2.0.0
+FROM cachengo/xos-base:master
 
 # Add libraries
 COPY lib /opt/xos/lib
