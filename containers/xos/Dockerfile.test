@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/xos-test
-FROM cachengo/xos:master
+FROM cachengo/xos:2.1.0
 
 # install nodejs
 COPY containers/xos/nodesource.gpg.key /tmp/nodesource.gpg.key
