@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/xos-client
-FROM cachengo/xos-libraries:2.1.22
+FROM cachengo/xos-libraries:2.1.23
 
 # Install XOS client
 COPY xos/xos_client /tmp/xos_client
