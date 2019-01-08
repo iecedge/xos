@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/xos-core
-FROM cachengo/xos-libraries:2.1.27
+FROM cachengo/xos-libraries:2.1.28
 
 # Install XOS
 ADD xos /opt/xos
