@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,4 +53,8 @@ class ToscaViewSet(XOSViewSet):
         finally:
             sys.path = sys_path_save
 
+<<<<<<< HEAD
         return Response( {"log_msgs": xt.log_msgs} )
+=======
+        return Response({"log_msgs": xt.log_msgs})
+>>>>>>> 045b63d3a... [SEBA-412] Automated reformat of Python code

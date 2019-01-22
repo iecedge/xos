@@ -51,15 +51,8 @@ class SyncInstanceUsingAnsible(SyncStep):
     def defer_sync(self, o, reason):
         # zdw, 2017-02-18 - is raising the exception here necessary? - seems like
         # it's just logging the same thing twice
-<<<<<<< HEAD
-        log.info("defer object", object = str(o), reason = reason, **o.tologdict())
-=======
-<<<<<<< HEAD
         self.log.info("defer object", object=str(o), reason=reason, **o.tologdict())
-=======
-        self.log.info("defer object", object = str(o), reason = reason, **o.tologdict())
->>>>>>> ee72577d9... [SEBA-366], [SEBA-378]
->>>>>>> d3f0b0199... [SEBA-366], [SEBA-378]
+
         raise DeferredException("defer object %s due to %s" % (str(o), reason))
 
     def get_extra_attributes(self, o):
@@ -89,17 +82,9 @@ class SyncInstanceUsingAnsible(SyncStep):
             template_name = self.template_name
         tStart = time.time()
         run_template_ssh(template_name, fields, object=o)
-<<<<<<< HEAD
-        log.info("playbook execution time", time = int(time.time() - tStart), **o.tologdict())
-=======
-<<<<<<< HEAD
         self.log.info(
             "playbook execution time", time=int(time.time() - tStart), **o.tologdict()
         )
-=======
-        self.log.info("playbook execution time", time = int(time.time() - tStart), **o.tologdict())
->>>>>>> ee72577d9... [SEBA-366], [SEBA-378]
->>>>>>> d3f0b0199... [SEBA-366], [SEBA-378]
 
     def pre_sync_hook(self, o, fields):
         pass
@@ -206,15 +191,7 @@ class SyncInstanceUsingAnsible(SyncStep):
         return fields
 
     def sync_record(self, o):
-<<<<<<< HEAD
-        log.info("sync'ing object", object = str(o), **o.tologdict())
-=======
-<<<<<<< HEAD
         self.log.info("sync'ing object", object=str(o), **o.tologdict())
-=======
-        self.log.info("sync'ing object", object = str(o), **o.tologdict())
->>>>>>> ee72577d9... [SEBA-366], [SEBA-378]
->>>>>>> d3f0b0199... [SEBA-366], [SEBA-378]
 
         self.prepare_record(o)
 
@@ -369,7 +346,7 @@ class SyncInstanceUsingAnsible(SyncStep):
                 matched_service = subscriber_service
                 other_service = provider_service
             else:
-                log.info("handle_watched_object: Service object does not match with any of composed services", 
+                log.info("handle_watched_object: Service object does not match with any of composed services",
                 object = str(obj))
                 return
         elif model_accessor.is_instance(obj, "Tenant"):
