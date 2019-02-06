@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/xos-client
-FROM cachengo/xos-libraries:2.1.41
+FROM cachengo/xos-libraries:2.1.42
 
 # Install XOS client
 COPY lib/xos-api /tmp/xos-api
