@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/chameleon
-FROM cachengo/xos-base:2.1.45
+FROM cachengo/xos-base:2.1.46
 
 # xos-base already has protoc and dependencies installed
 
