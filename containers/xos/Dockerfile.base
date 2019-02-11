@@ -41,24 +41,6 @@ RUN export aarch=`dpkg --print-architecture` \
     && mv go /usr/local \
     && rm $gotar
 
-# Build filebeats
-RUN export PATH=$PATH:/usr/local/go/bin \
-    && go get github.com/elastic/beats/... \
-    && cd ~/go/src/github.com/elastic/beats/filebeat/ \
-    && ls \
-    && git checkout "v6.1.1" \
-    && GOARCH=$aarch go build \
-    && cp filebeat /usr/bin \
-    && cp ~/go/src/github.com/elastic/beats/dev-tools/packer/platforms/debian/init.j2 /etc/init.d/filebeat \
-    && sed -i 's/{{.beat_pkg_name}}/filebeat/g' /etc/init.d/filebeat \
-    && sed -i 's/{{.beat_name}}/filebeat/g' /etc/init.d/filebeat \
-    && sed -i 's/{{.beat_description}}/sends log files to Elastic Search/g' /etc/init.d/filebeat \
-    && update-rc.d filebeat defaults 95 10 \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir /var/xos
-
-RUN pip freeze > /var/xos/pip_freeze_apt_`date -u +%Y%m%dT%H%M%S`
-
 # Install python packages with pip
 # Upgrade methodology - pip_requested.txt is the manually generated list of pip
 # packages desired, without any added dependencies. It is used to generate
@@ -67,8 +49,7 @@ RUN pip freeze > /var/xos/pip_freeze_apt_`date -u +%Y%m%dT%H%M%S`
 # `pip freeze > pip_requirements.txt` and manually clean up.
 COPY pip_requirements.txt /tmp/pip_requirements.txt
 RUN pip install --no-deps -U -I pip==9.0.3 setuptools==39.0.1 requests==2.18.4 \
- && pip install --no-deps -r /tmp/pip_requirements.txt \
- && pip freeze > /var/xos/pip_freeze_pip_up_`date -u +%Y%m%dT%H%M%S`
+ && pip install --no-deps -r /tmp/pip_requirements.txt
 
 # Label image
 ARG org_label_schema_schema_version=1.0
@@ -86,4 +67,3 @@ LABEL org.label-schema.schema-version=$org_label_schema_schema_version \
       org.label-schema.vcs-ref=$org_label_schema_vcs_ref \
       org.label-schema.build-date=$org_label_schema_build_date \
       org.opencord.vcs-commit-date=$org_opencord_vcs_commit_date
-
