@@ -1,3 +1,4 @@
 views/
 venv-xos/
 docs/venv-xosdocs
+ci_scripts/
