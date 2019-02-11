@@ -46,14 +46,25 @@ python setup.py install
 echo "xos-config Installed"
 popd
 
-pushd "$XOS_DIR//lib/xos-genx"
+pushd "$XOS_DIR/lib/xos-genx"
 python setup.py install
 echo "xos-genx Installed"
 popd
 
-pushd "$XOS_DIR/xos/xos_client"
-make
-echo "xos-client Installed"
+pushd "$XOS_DIR/lib/xos-kafka"
+python setup.py install
+echo "xos-kafka Installed"
 popd
+
+pushd "$XOS_DIR/lib/xos-api"
+make
+echo "xos-api Installed"
+popd
+
+pushd "$XOS_DIR/lib/xos-synchronizer"
+python ./setup.py install
+echo "xos-synchronizer Installed"
+popd
+
 
 echo "XOS dev/test virtualenv created. Run 'source ${VENVDIR}/bin/activate'."

@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,36 +12,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
+
 
 def makedirs_if_noexist(pathname):
     if not os.path.exists(pathname):
         os.makedirs(pathname)
 
+
 class AppListBuilder(object):
     def __init__(self):
         self.app_metadata_dir = "/opt/xos/xos"
         self.services_dest_dir = "/opt/xos/services"
+        self.service_manifests_dir = "/opt/xos/dynamic_services/manifests"
+
+    def load_manifests(self):
+        """ Load the manifests that were saved from LoadModels() calls """
+
+        if not os.path.exists(self.service_manifests_dir):
+            # No manifests dir means no services have been dynamically loaded yet
+            return {}
+
+        manifests = {}
+        for fn in os.listdir(self.service_manifests_dir):
+            manifest_fn = os.path.join(self.service_manifests_dir, fn)
+            manifest = json.loads(open(manifest_fn).read())
+            if not "name" in manifest:
+                # sanity check
+                continue
+            manifests[manifest["name"]] = manifest
+
+        return manifests
 
     def generate_app_lists(self):
-        # TODO: Once static onboarding is no more, we will get these from the manifests rather than using listdir
         app_names = []
-        for fn in os.listdir(self.services_dest_dir):
-            service_dir = os.path.join(self.services_dest_dir, fn)
-            if (not fn.startswith(".")) and os.path.isdir(service_dir):
-                models_fn = os.path.join(service_dir, "models.py")
-                if os.path.exists(models_fn):
-                    app_names.append(fn)
+        automigrate_app_names = []
 
-        # Generate the migration list
+        manifests = self.load_manifests()
+        for manifest in manifests.values():
+            # We're only interested in apps that contain models
+            if manifest.get("xprotos"):
+                app_names.append(manifest["name"])
+
+                # Only apps that do not already have migration scripts will get automigrated
+                # TODO(smbaker): Eventually all apps will have migration scripts. Drop this when that happens.
+                if not manifest.get("migrations"):
+                    automigrate_app_names.append(manifest["name"])
+
+        # Generate the auto-migration list
         mig_list_fn = os.path.join(self.app_metadata_dir, "xosbuilder_migration_list")
         makedirs_if_noexist(os.path.dirname(mig_list_fn))
-        file(mig_list_fn, "w").write("\n".join(app_names) + "\n")
+        file(mig_list_fn, "w").write("\n".join(automigrate_app_names) + "\n")
 
         # Generate the app list
         app_list_fn = os.path.join(self.app_metadata_dir, "xosbuilder_app_list")
         makedirs_if_noexist(os.path.dirname(app_list_fn))
-        file(app_list_fn, "w").write("\n".join(["services.%s" % x for x in app_names]) + "\n")
+        file(app_list_fn, "w").write(
+            "\n".join(["services.%s" % x for x in app_names]) + "\n"
+        )
+
 
 if __name__ == "__main__":
     AppListBuilder().generate_app_lists()

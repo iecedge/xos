@@ -13,16 +13,20 @@
 # limitations under the License.
 
 # cachengo/xos-synchronizer-base
-FROM cachengo/xos-client:2.0.0
+FROM cachengo/xos-client:2.1.45
 
 COPY xos/synchronizers/new_base /opt/xos/synchronizers/new_base
 COPY xos/xos/logger.py /opt/xos/xos/logger.py
-COPY xos/xos/xml_util.py /opt/xos/xos/xml_util.py
 COPY xos/xos/__init__.py /opt/xos/xos/__init__.py
 COPY xos/synchronizers/__init__.py /opt/xos/synchronizers/__init__.py
 
 # Copy over ansible hosts
 COPY containers/xos/ansible-hosts /etc/ansible/hosts
+
+# For library-based synchronizers
+COPY lib/xos-synchronizer /tmp/xos-synchronizer
+COPY VERSION tmp/xos-synchronizer
+RUN cd /tmp/xos-synchronizer && python setup.py install
 
 # Label image
 ARG org_label_schema_schema_version=1.0

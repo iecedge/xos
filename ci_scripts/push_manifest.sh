@@ -14,6 +14,7 @@ export IMAGE_NAMES=(
 )
 
 for IMAGE_NAME in ${IMAGE_NAMES[@]}; do
+  docker rmi cachengo/$IMAGE_NAME:$IMAGE_TAG
   docker manifest create --amend cachengo/$IMAGE_NAME:$IMAGE_TAG cachengo/$IMAGE_NAME-x86_64:$IMAGE_TAG cachengo/$IMAGE_NAME-aarch64:$IMAGE_TAG
   docker manifest push cachengo/$IMAGE_NAME:$IMAGE_TAG
 done

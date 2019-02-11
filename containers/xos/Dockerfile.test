@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # cachengo/xos-test
-FROM cachengo/xos:2.0.0
+FROM cachengo/xos:2.1.0
 
 # install nodejs
 COPY containers/xos/nodesource.gpg.key /tmp/nodesource.gpg.key
@@ -45,4 +45,3 @@ LABEL org.label-schema.schema-version=$org_label_schema_schema_version \
       org.label-schema.vcs-ref=$org_label_schema_vcs_ref \
       org.label-schema.build-date=$org_label_schema_build_date \
       org.opencord.vcs-commit-date=$org_opencord_vcs_commit_date
-

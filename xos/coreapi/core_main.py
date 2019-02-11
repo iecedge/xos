@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,23 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
-import os
-import sys
-import time
+import prometheus_client
 
+# FIXME: should grpc_server initialize the Config?
 from grpc_server import XOSGrpcServer
 
 from xosconfig import Config
+from xoskafka import XOSKafkaProducer
 from multistructlog import create_logger
 
-log = create_logger(Config().get('logging'))
+log = create_logger(Config().get("logging"))
+
+# create an single kafka producer connection for the core
+
+XOSKafkaProducer.init()
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_status", dest="model_status", type=int, default=0, help="status of model prep")
-    parser.add_argument("--model_output", dest="model_output", type=file, default=None, help="file containing output of model prep step")
+    parser.add_argument(
+        "--model_status",
+        dest="model_status",
+        type=int,
+        default=0,
+        help="status of model prep",
+    )
+    parser.add_argument(
+        "--model_output",
+        dest="model_output",
+        type=file,
+        default=None,
+        help="file containing output of model prep step",
+    )
     args = parser.parse_args()
 
     if args.model_output:
@@ -39,22 +54,30 @@ def parse_args():
 
     return args
 
+
 def init_reaper():
     reaper = None
     try:
         from reaper import ReaperThread
+
         reaper = ReaperThread()
         reaper.start()
-    except:
+    except BaseException:
         log.exception("Failed to initialize reaper")
 
     return reaper
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     args = parse_args()
 
-    server = XOSGrpcServer(model_status = args.model_status,
-                           model_output = args.model_output)
+    # start the prometheus server
+    # TODO (teone) consider moving this in a separate process so that it won't die when we load services
+    prometheus_client.start_http_server(8000)
+
+    server = XOSGrpcServer(
+        model_status=args.model_status, model_output=args.model_output
+    )
     server.start()
 
     if server.django_initialized:

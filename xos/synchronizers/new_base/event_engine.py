@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,72 +12,134 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import confluent_kafka
 import imp
 import inspect
 import os
 import threading
 import time
 from xosconfig import Config
-from multistructlog import create_logger
-from kafka.errors import NoBrokersAvailable
 
-log = create_logger(Config().get('logging'))
+
+class XOSKafkaMessage:
+    def __init__(self, consumer_msg):
+
+        self.topic = consumer_msg.topic()
+        self.key = consumer_msg.key()
+        self.value = consumer_msg.value()
+
+        self.timestamp = None
+        (ts_type, ts_val) = consumer_msg.timestamp()
+
+        if ts_type is not confluent_kafka.TIMESTAMP_NOT_AVAILABLE:
+            self.timestamp = ts_val
+
 
 class XOSKafkaThread(threading.Thread):
-    """ XOSKafkaTrhead
+    """ XOSKafkaThread
 
         A Thread for servicing Kafka events. There is one event_step associated with one XOSKafkaThread. A
-        KafkaConsumer is launched to listen on the topics specified by the thread. The thread's process_event()
+        Consumer is launched to listen on the topics specified by the thread. The thread's process_event()
         function is called for each event.
     """
 
-    def __init__(self, step, bootstrap_servers, *args, **kwargs):
+    def __init__(self, step, bootstrap_servers, log, *args, **kwargs):
         super(XOSKafkaThread, self).__init__(*args, **kwargs)
         self.consumer = None
         self.step = step
         self.bootstrap_servers = bootstrap_servers
+        self.log = log
         self.daemon = True
 
     def create_kafka_consumer(self):
-        from kafka import KafkaConsumer
-        return KafkaConsumer(bootstrap_servers=self.bootstrap_servers)
+        # use the service name as the group id
+        consumer_config = {
+            "group.id": Config().get("name"),
+            "bootstrap.servers": ",".join(self.bootstrap_servers),
+            "default.topic.config": {"auto.offset.reset": "smallest"},
+        }
+
+        return confluent_kafka.Consumer(**consumer_config)
 
     def run(self):
         if (not self.step.topics) and (not self.step.pattern):
-            raise Exception("Neither topics nor pattern is defined for step %s" % self.step.__name__)
+            raise Exception(
+                "Neither topics nor pattern is defined for step %s" % self.step.__name__
+            )
 
         if self.step.topics and self.step.pattern:
-            raise Exception("Both topics and pattern are defined for step %s. Choose one." %
-                            self.step.__name__)
+            raise Exception(
+                "Both topics and pattern are defined for step %s. Choose one."
+                % self.step.__name__
+            )
+
+        self.log.info(
+            "Waiting for events",
+            topic=self.step.topics,
+            pattern=self.step.pattern,
+            step=self.step.__name__,
+        )
 
         while True:
             try:
-                self.consumer = self.create_kafka_consumer()
-                if self.step.topics:
-                    self.consumer.subscribe(topics=self.step.topics)
-                elif self.step.pattern:
-                    self.consumer.subscribe(pattern=self.step.pattern)
+                # setup consumer or loop on failure
+                if self.consumer is None:
+                    self.consumer = self.create_kafka_consumer()
 
-                log.info("Waiting for events",
-                         topic=self.step.topics,
-                         pattern=self.step.pattern,
-                         step=self.step.__name__)
+                    if self.step.topics:
+                        self.consumer.subscribe(self.step.topics)
 
-                for msg in self.consumer:
-                    log.info("Processing event", msg=msg, step=self.step.__name__)
-                    try:
-                        self.step(log=log).process_event(msg)
-                    except:
-                        log.exception("Exception in event step", msg=msg, step=self.step.__name__)
-            except NoBrokersAvailable:
-                log.warning("No brokers available on %s" % self.bootstrap_servers)
+                    elif self.step.pattern:
+                        self.consumer.subscribe(self.step.pattern)
+
+            except confluent_kafka.KafkaError._ALL_BROKERS_DOWN as e:
+                self.log.warning(
+                    "No brokers available on %s, %s" % (self.bootstrap_servers, e)
+                )
                 time.sleep(20)
-            except:
-                # Maybe Kafka has not started yet. Log the exception and try again in a second.
-                log.exception("Exception in kafka loop")
-                time.sleep(1)
+                continue
 
-class XOSEventEngine:
+            except confluent_kafka.KafkaError as e:
+                # Maybe Kafka has not started yet. Log the exception and try again in a second.
+                self.log.exception("Exception in kafka loop: %s" % e)
+                time.sleep(1)
+                continue
+
+            # wait until we get a message, if no message, loop again
+            msg = self.consumer.poll(timeout=1.0)
+
+            if msg is None:
+                continue
+
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    self.log.debug(
+                        "Reached end of kafka topic %s, partition: %s, offset: %d"
+                        % (msg.topic(), msg.partition(), msg.offset())
+                    )
+                else:
+                    self.log.exception("Error in kafka message: %s" % msg.error())
+
+            else:
+                # wrap parsing the event in a class
+                event_msg = XOSKafkaMessage(msg)
+
+                self.log.info(
+                    "Processing event", event_msg=event_msg, step=self.step.__name__
+                )
+
+                try:
+                    self.step(log=self.log).process_event(event_msg)
+
+                except BaseException:
+                    self.log.exception(
+                        "Exception in event step",
+                        event_msg=event_msg,
+                        step=self.step.__name__,
+                    )
+
+
+class XOSEventEngine(object):
     """ XOSEventEngine
 
         Subscribe to and handle processing of events. Two methods are defined:
@@ -90,18 +151,24 @@ class XOSEventEngine:
                         will be called before start().
     """
 
-    def __init__(self):
+    def __init__(self, log):
         self.event_steps = []
         self.threads = []
+        self.log = log
 
     def load_event_step_modules(self, event_step_dir):
         self.event_steps = []
-        log.info("Loading event steps", event_step_dir=event_step_dir)
+        self.log.info("Loading event steps", event_step_dir=event_step_dir)
 
         # NOTE we'll load all the classes that inherit from EventStep
         for fn in os.listdir(event_step_dir):
             pathname = os.path.join(event_step_dir, fn)
-            if os.path.isfile(pathname) and fn.endswith(".py") and (fn != "__init__.py") and ("test" not in fn):
+            if (
+                os.path.isfile(pathname)
+                and fn.endswith(".py")
+                and (fn != "__init__.py")
+                and ("test" not in fn)
+            ):
                 event_module = imp.load_source(fn[:-3], pathname)
 
                 for classname in dir(event_module):
@@ -109,30 +176,41 @@ class XOSEventEngine:
 
                     if inspect.isclass(c):
                         base_names = [b.__name__ for b in c.__bases__]
-                        if 'EventStep' in base_names:
+                        if "EventStep" in base_names:
                             self.event_steps.append(c)
-        log.info("Loaded event steps", steps=self.event_steps)
+        self.log.info("Loaded event steps", steps=self.event_steps)
 
     def start(self):
         eventbus_kind = Config.get("event_bus.kind")
         eventbus_endpoint = Config.get("event_bus.endpoint")
 
         if not eventbus_kind:
-            log.error("Eventbus kind is not configured in synchronizer config file.")
+            self.log.error(
+                "Eventbus kind is not configured in synchronizer config file."
+            )
             return
 
         if eventbus_kind not in ["kafka"]:
-            log.error("Eventbus kind is set to a technology we do not implement.", eventbus_kind=eventbus_kind)
+            self.log.error(
+                "Eventbus kind is set to a technology we do not implement.",
+                eventbus_kind=eventbus_kind,
+            )
             return
 
         if not eventbus_endpoint:
-            log.error("Eventbus endpoint is not configured in synchronizer config file.")
+            self.log.error(
+                "Eventbus endpoint is not configured in synchronizer config file."
+            )
             return
 
         for step in self.event_steps:
             if step.technology == "kafka":
-                thread = XOSKafkaThread(step=step, bootstrap_servers=[eventbus_endpoint])
+                thread = XOSKafkaThread(step, [eventbus_endpoint], self.log)
                 thread.start()
                 self.threads.append(thread)
             else:
-                log.error("Unknown technology. Skipping step", technology=step.technology, step=step.__name__)
+                self.log.error(
+                    "Unknown technology. Skipping step",
+                    technology=step.technology,
+                    step=step.__name__,
+                )

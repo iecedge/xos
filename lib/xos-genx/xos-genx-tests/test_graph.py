@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +14,14 @@
 
 
 import unittest
-from xosgenx.generator import XOSProcessor
-from helpers import FakeArgs, XProtoTestHelpers
+from xosgenx.generator import XOSProcessor, XOSProcessorArgs
+from helpers import XProtoTestHelpers
+
 
 class XProtoGraphTests(unittest.TestCase):
     def test_cross_model(self):
         target = XProtoTestHelpers.write_tmp_target(
-"""
+            """
   {% for m in proto.messages %}
   {{ m.name }} {
   {%- for l in m.links %}
@@ -34,10 +34,10 @@ class XProtoGraphTests(unittest.TestCase):
   {% endfor %}
   }
   {% endfor %}
-""")
-
-        proto = \
 """
+        )
+
+        proto = """
 message Port (PlCoreBase,ParameterMixin){
      required manytoone network->Network:links = 1 [db_index = True, null = False, blank = False];
      optional manytoone instance->Instance:ports = 2 [db_index = True, null = True, blank = True];
@@ -112,16 +112,17 @@ message Slice (PlCoreBase){
 }
 """
 
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = proto
         args.target = target
         output = XOSProcessor.process(args)
-        num_semis = output.count(';')
-        self.assertGreater(num_semis, 3) # 3 is the number of links, each of which contains at least one field
+        num_semis = output.count(";")
+        self.assertGreater(
+            num_semis, 3
+        )  # 3 is the number of links, each of which contains at least one field
 
     def test_base_class_fields(self):
-        target = \
-"""
+        target = """
   {% for m in proto.messages %}
   {{ m.name }} {
   {%- for l in m.links %}
@@ -137,8 +138,7 @@ message Slice (PlCoreBase){
 """
         xtarget = XProtoTestHelpers.write_tmp_target(target)
 
-        proto = \
-"""
+        proto = """
 message Port (PlCoreBase,ParameterMixin){
      required manytoone network->Network:links = 1 [db_index = True, null = False, blank = False];
      optional manytoone instance->Instance:ports = 2 [db_index = True, null = True, blank = True];
@@ -213,24 +213,22 @@ message Slice (PlCoreBase){
 }
 """
 
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = proto
         args.target = xtarget
         output = XOSProcessor.process(args)
 
-        num_semis = output.count(';')
+        num_semis = output.count(";")
         self.assertGreater(num_semis, 3)
 
     def test_from_base(self):
-        target = \
-"""
+        target = """
   {% for f in xproto_base_fields(proto.messages.3, proto.message_table) %}
         {{ f.type }} {{ f.name }};
   {% endfor %}
 """
         xtarget = XProtoTestHelpers.write_tmp_target(target)
-        proto = \
-"""
+        proto = """
 message Port (PlCoreBase,ParameterMixin){
      required string easter_egg = 1;
      required manytoone network->Network:links = 1 [db_index = True, null = False, blank = False];
@@ -305,13 +303,12 @@ message Slice (Network){
      required manytomany tags->Tag = 18 [db_index = False, null = False, blank = True];
 }
 """
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = proto
         args.target = xtarget
         output = XOSProcessor.process(args)
-        self.assertIn('easter_egg', output)
+        self.assertIn("easter_egg", output)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
-
-

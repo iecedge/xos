@@ -1,4 +1,3 @@
-
 # Copyright 2017-present Open Networking Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,40 +14,46 @@
 
 
 import unittest
-from xosgenx.generator import XOSProcessor
-from helpers import FakeArgs, XProtoTestHelpers
+from xosgenx.generator import XOSProcessor, XOSProcessorArgs
+from helpers import FakeObject, XProtoTestHelpers
 
 """The function below is for eliminating warnings arising due to the missing policy_output_validator,
 which is generated and loaded dynamically.
 """
+
+
 def policy_output_validator(x, y):
     raise Exception("Validator not generated. Test failed.")
     return False
 
+
 """
-The tests below use the Python code target to generate 
+The tests below use the Python code target to generate
 Python validation policies, set up an appropriate environment and execute the Python.
 """
+
+
 class XProtoXOSModelValidationTest(unittest.TestCase):
     def setUp(self):
-        self.target = XProtoTestHelpers.write_tmp_target("{{ xproto_fol_to_python_validator('output', proto.policies.test_policy, None, 'Necessary Failure') }}")
+        self.target = XProtoTestHelpers.write_tmp_target(
+            "{{ xproto_fol_to_python_validator('output', proto.policies.test_policy, None, 'Necessary Failure') }}"
+        )
 
     def test_instance_container(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < (obj.isolation = "container" | obj.isolation = "container_vm" ) -> (obj.image.kind = "container") >
 """
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
         output = XOSProcessor.process(args)
 
-        obj = FakeArgs()
-        obj.isolation = 'container'
-        obj.kind = 'not a container'
+        obj = FakeObject()
+        obj.isolation = "container"
+        obj.kind = "not a container"
 
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -61,24 +66,23 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
         """
 
         with self.assertRaises(Exception):
-           policy_output_validator(obj, {})
-    
+            policy_output_validator(obj, {})
+
     def test_slice_name_validation(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < not obj.id -> {{ obj.name.startswith(obj.site.login_base) }} >
 """
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
         output = XOSProcessor.process(args)
 
-        obj = FakeArgs()
-        obj.isolation = 'container'
-        obj.kind = 'not a container'
+        obj = FakeObject()
+        obj.isolation = "container"
+        obj.kind = "not a container"
 
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -91,21 +95,20 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
         """
 
         with self.assertRaises(Exception):
-           policy_output_validator(obj, {})
+            policy_output_validator(obj, {})
 
     def test_equal(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < not (ctx.user = obj.user) >
 """
 
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
         output = XOSProcessor.process(args)
 
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -115,26 +118,25 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
                 raise Exception('Necessary Failure')
         """
 
-        obj = FakeArgs()
-	obj.user = 1
-        ctx = FakeArgs()
-	ctx.user = 1
+        obj = FakeObject()
+        obj.user = 1
+        ctx = FakeObject()
+        ctx.user = 1
 
         with self.assertRaises(Exception):
-           policy_output_validator(obj, ctx)
+            policy_output_validator(obj, ctx)
 
     def test_bin(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < not (ctx.is_admin = True | obj.empty = True) | False>
 """
 
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
         output = XOSProcessor.process(args)
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -145,27 +147,25 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
                 raise Exception('Necessary Failure')
         """
 
-        obj = FakeArgs()
-	obj.empty = True
+        obj = FakeObject()
+        obj.empty = True
 
-	ctx = FakeArgs()
-	ctx.is_admin = True
+        ctx = FakeObject()
+        ctx.is_admin = True
 
         with self.assertRaises(Exception):
             verdict = policy_output_validator(obj, ctx)
 
-        
     def test_exists(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < exists Privilege: Privilege.object_id = obj.id >
 """
-	args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
         output = XOSProcessor.process(args)
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -175,17 +175,16 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
         """
 
         self.assertTrue(policy_output_validator is not None)
-	
+
     def test_python(self):
-        xproto = \
-"""
+        xproto = """
     policy test_policy < {{ "jack" in ["the", "box"] }} = True >
 """
-	args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
         output = XOSProcessor.process(args)
-        exec(output) # This loads the generated function, which should look like this:
+        exec(output)  # This loads the generated function, which should look like this:
 
         """
         def policy_output_validator(obj, ctx):
@@ -200,12 +199,11 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
 
     def test_forall(self):
         # This one we only parse
-        xproto = \
-"""
+        xproto = """
     policy test_policy < forall Credential: Credential.obj_id = obj_id >
 """
 
-        args = FakeArgs()
+        args = XOSProcessorArgs()
         args.inputs = xproto
         args.target = self.target
 
@@ -218,7 +216,8 @@ class XProtoXOSModelValidationTest(unittest.TestCase):
             return i1
         """
 
-        self.assertIn('policy_output_validator', output)
+        self.assertIn("policy_output_validator", output)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

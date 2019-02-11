@@ -1,0 +1,287 @@
+#!/usr/bin/python
+#
+# XOSAPI interactive shell
+
+
+import argparse
+import functools
+import os
+import sys
+import atexit
+import readline
+import traceback
+
+from twisted.internet import reactor
+from xosapi.version import __version__
+
+current_client = None
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    defs = {"grpc_insecure_endpoint": "xos-core:50055",
+            "grpc_secure_endpoint": "xos-core:50051",
+            "config": '/opt/xos/config.yml'}
+
+    _help = 'Path to the config file (default: %s)' % defs['config']
+    parser.add_argument(
+        '-C', '--config', dest='config', action='store',
+        default=defs['config'],
+        help=_help)
+
+    _help = ('gRPC insecure end-point to connect to. It is a direct',
+             '. (default: %s'
+             % defs['grpc_insecure_endpoint'])
+    parser.add_argument('-G', '--grpc-insecure-endpoint',
+                        dest='grpc_insecure_endpoint',
+                        action='store',
+                        default=defs["grpc_insecure_endpoint"],
+                        help=_help)
+
+    _help = ('gRPC secure end-point to connect to. It is a direct',
+             '. (default: %s'
+             % defs["grpc_secure_endpoint"])
+    parser.add_argument('-S', '--grpc-secure-endpoint',
+                        dest='grpc_secure_endpoint',
+                        action='store',
+                        default=defs["grpc_secure_endpoint"],
+                        help=_help)
+
+    parser.add_argument('-u', '--username',
+                        dest='username',
+                        action='store',
+                        default=None,
+                        help=_help)
+
+    parser.add_argument('-p', '--password',
+                        dest='password',
+                        action='store',
+                        default=None,
+                        help=_help)
+
+    _help = 'omit startup banner log lines'
+    parser.add_argument('-n', '--no-banner',
+                        dest='no_banner',
+                        action='store_true',
+                        default=False,
+                        help=_help)
+
+    _help = "suppress debug and info logs"
+    parser.add_argument('-q', '--quiet',
+                        dest='quiet',
+                        action='count',
+                        help=_help)
+
+    _help = 'increase verbosity level (can be used multiple times)'
+    parser.add_argument('-v', '--verbose',
+                        dest='verbose',
+                        action='count',
+                        help=_help)
+
+    _help = 'print version'
+    parser.add_argument('-V', '--version',
+                        dest='version',
+                        action='store_true',
+                        default=False,
+                        help=_help)
+
+    args = parser.parse_args()
+
+    return args
+
+
+def login(username=None, password=None):
+    from xosapi.xos_grpc_client import InsecureClient, SecureClient
+    if current_client:
+        current_client.stop()
+        current_client.session_change = True
+
+    # now switch
+
+    if username:
+        client = SecureClient(endpoint=args.grpc_secure_endpoint, username=username, password=password)
+        client.set_reconnect_callback(functools.partial(start_xossh, client))
+        client.start()
+    else:
+        client = InsecureClient(endpoint=args.grpc_insecure_endpoint)
+        client.set_reconnect_callback(functools.partial(start_xossh, client))
+        client.start()
+
+
+def setDirtyModels(*args, **kwargs):
+    return current_client.utility.SetDirtyModels(current_client.utility_pb2.ModelFilter(*args, **kwargs))
+
+
+def listDirtyModels(*args, **kwargs):
+    return current_client.utility.ListDirtyModels(current_client.utility_pb2.ModelFilter(*args, **kwargs))
+
+
+def listModelDefs():
+    return current_client.modeldefs.ListModelDefs(Empty())
+
+
+def loadModels(name, version, xproto_filenames=[], decl_filenames=[], attic_filenames=[]):
+    request = current_client.dynamicload_pb2.LoadModelsRequest(name=name, version=version)
+    for fn in xproto_filenames:
+        item = request.xprotos.add()
+        item.filename = fn
+        item.contents = open(fn).read()
+    for fn in decl_filenames:
+        item = request.decls.add()
+        item.filename = fn
+        item.contents = open(fn).read()
+    for fn in attic_filenames:
+        item = request.attics.add()
+        item.filename = fn
+        item.contents = open(fn).read()
+    return current_client.dynamicload.LoadModels(request)
+
+
+def unloadModels(name, version):
+    request = current_client.dynamicload_pb2.UnloadModelsRequest(name=name, version=version)
+    return current_client.dynamicload.UnloadModels(request)
+
+
+def getLoadStatus():
+    request = Empty()
+    return current_client.dynamicload.GetLoadStatus(request)
+
+
+def listUtility():
+    print 'setDirtyModels(class_name=None)'
+    print 'listDirtyModels(class_name=None)'
+    print 'listModelDefs()'
+    print 'loadModels(name, version, xproto_filenames, decl_filenames, attic_filenames)'
+    print 'unloadModels(name, version)'
+    print 'getLoadStatus()'
+
+
+def examples():
+    print 'Slice.objects.all() # list all slices'
+    print 'Slice.objects.first().dump() # dump the first slice'
+    print 's = Slice.objects.new() # create a new slice'
+    print 's.name = "mysite_foo" # set a slice name'
+    print 's.site_id = coreapi.Site.objects.all()[0].id # grab the first site'
+    print 's.save() # save the slice'
+    print
+
+
+def start_xossh(client):
+    global coreapi, current_client
+    coreapi = client.xos_orm
+    current_client = client
+
+    current_client.session_change = False
+
+    if not args.no_banner:
+        print
+        print r"__   __   ____     _____    _____   _    _"
+        print r"\ \ / /  / __ \   / ____|  / ____| | |  | |"
+        print r" \ V /  | |  | | | (___   | (___   | |__| |"
+        print r"  > <   | |  | |  \___ \   \___ \  |  __  |"
+        print r" / . \  | |__| |  ____) |  ____) | | |  | |"
+        print r"/_/ \_\  \____/  |_____/  |_____/  |_|  |_|"
+        print
+
+        print "XOS Core server at %s" % client.endpoint
+
+        print 'Type "listObjects()" for a list of all objects'
+        print 'Type "listUtility()" for a list of utility functions'
+        print 'Type "login("username", "password")" to switch to a secure shell'
+        print 'Type "examples()" for some examples'
+
+    # Load command history
+    history_path = os.path.join(os.environ["HOME"], ".xossh_history")
+    try:
+        file(history_path, 'a').close()
+        readline.read_history_file(history_path)
+        atexit.register(readline.write_history_file, history_path)
+    except IOError:
+        pass
+
+    # Enable tab completion
+    readline.parse_and_bind("tab: complete")
+
+    reactor.callLater(0, functools.partial(do_xossh_prompt, client))
+
+
+def do_xossh_prompt(client):
+    for k in client.xos_orm.all_model_names:
+        locals()[k] = getattr(client.xos_orm, k)
+
+    locals()["listObjects"] = client.xos_orm.listObjects
+
+    prompt = "xossh "
+    try:
+        while True:
+            command = ""
+            while True:
+                # Get line
+                try:
+                    if command == "":
+                        sep = ">>> "
+                    else:
+                        sep = "... "
+                    line = raw_input(prompt + sep)
+                # Ctrl-C
+                except KeyboardInterrupt:
+                    command = ""
+                    print
+                    break
+
+                # Build up multi-line command
+                command += line
+
+                # Blank line or first line does not end in :
+                if line == "" or (command == line and line[-1] != ':'):
+                    break
+
+                command += os.linesep
+
+            # Quit
+            if command in ["q", "quit", "exit"]:
+                reactor.stop()
+                return
+
+            if (command == "") or (command.strip().startswith("#")):
+                # blank line
+                pass
+            else:
+                try:
+                    # Do it
+                    code = compile(command, "<stdin>", "single")
+                    exec code
+                except Exception:
+                    traceback.print_exc()
+
+            # check to see if login() was used
+            if client.session_change:
+                return
+
+            #reactor.callLater(0, functools.partial(do_xossh_prompt, client))
+
+    except EOFError:
+        print
+        reactor.stop()
+
+
+def main():
+    global args
+    args = parse_args()
+
+    from xosconfig import Config
+
+    config_file = args.config
+    Config.init(config_file, 'synchronizer-config-schema.yaml')
+
+    if args.version:
+        print __version__
+        sys.exit(0)
+
+    login(username=args.username, password=args.password)
+    reactor.run()
+
+
+if __name__ == "__main__":
+    main()
