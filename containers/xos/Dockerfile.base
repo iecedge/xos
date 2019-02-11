@@ -41,6 +41,13 @@ RUN export aarch=`dpkg --print-architecture` \
     && mv go /usr/local \
     && rm $gotar
 
+# Libkafka is necessary for some python packages
+RUN curl -L https://github.com/edenhill/librdkafka/archive/v0.11.6.tar.gz | tar xzf - \
+    && cd librdkafka-0.11.6/ \
+    && ./configure --prefix=/usr \
+    && make -j \
+    && make install
+
 # Install python packages with pip
 # Upgrade methodology - pip_requested.txt is the manually generated list of pip
 # packages desired, without any added dependencies. It is used to generate
