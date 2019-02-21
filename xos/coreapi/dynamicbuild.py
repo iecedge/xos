@@ -15,6 +15,7 @@
 import json
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 from xosgenx.generator import XOSProcessor, XOSProcessorArgs
@@ -28,8 +29,13 @@ DEFAULT_BASE_DIR = "/opt/xos"
 
 
 class DynamicBuilder(object):
-    NOTHING_TO_DO = 0
-    SOMETHING_CHANGED = 1
+    # These constants must agree with what is declared in dnyamicload.proto
+    SUCCESS = 0
+    SUCCESS_NOTHING_CHANGED = 1
+    ERROR = 101
+    ERROR_LIVE_MODELS = 102
+    ERROR_DELETION_IN_PROGRESS = 103
+    TRYAGAIN = 201
 
     def __init__(self, base_dir=DEFAULT_BASE_DIR):
         self.services_dir = os.path.join(base_dir, "dynamic_services")
@@ -43,8 +49,9 @@ class DynamicBuilder(object):
         )
 
     def pre_validate_file(self, item):
-        # someone might be trying to trick us into writing files outside the designated directory
-        if "/" in item.filename:
+        # various filename validations
+        #   alphas (upper and lower), digits, underscore, dash, and period.
+        if not re.match("^[\w.-]+$", item.filename):  # noqa: W605
             raise Exception("illegal character in filename %s" % item.filename)
 
     def pre_validate_python(self, item):
@@ -117,7 +124,7 @@ class DynamicBuilder(object):
                 "Models are already up-to-date; skipping dynamic load.",
                 name=request.name,
             )
-            return self.NOTHING_TO_DO
+            return self.SUCCESS_NOTHING_CHANGED
 
         self.pre_validate_models(request)
 
@@ -130,12 +137,33 @@ class DynamicBuilder(object):
 
         log.info("Finished LoadModels request", name=request.name)
 
-        return self.SOMETHING_CHANGED
+        return self.SUCCESS
 
-    def handle_unloadmodels_request(self, request):
+    def handle_unloadmodels_request(self, request, models):
         (manifest, manifest_fn) = self.load_manifest_from_request(request)
 
-        # TODO: Check version number to make sure this is not a downgrade ?
+        for (name, model) in models.items():
+            if model.objects.exists():
+                if request.cleanup_behavior == request.REQUIRE_CLEAN:
+                    log.info("UnloadModels: Returning error due to live model existence", model=model)
+                    return self.ERROR_LIVE_MODELS
+                elif request.cleanup_behavior == request.AUTOMATICALLY_CLEAN:
+                    # Deleting the model will add it to model.deleted_objects automatically, and it will be caught
+                    # by the next loop and return a TRYAGAIN as necessary.
+                    log.info("UnloadModels: Mass deleting", model=model)
+                    # NOTE: model.objects.all().delete() does not behave as expected.
+                    # Loop and delete each one instead.
+                    for object in model.objects.all():
+                        object.delete()
+
+        for (name, model) in models.items():
+            if model.deleted_objects.exists():
+                if request.cleanup_behavior == request.REQUIRE_CLEAN:
+                    log.info("UnloadModels: Returning error due to models in soft-delete", model=model)
+                    return self.ERROR_DELETION_IN_PROGRESS
+                elif request.cleanup_behavior == request.AUTOMATICALLY_CLEAN:
+                    log.info("UnloadModels: Returning tryagain due to models in soft-delete", model=model)
+                    return self.TRYAGAIN
 
         hash = self.generate_request_hash(request, state="unload")
         if hash == manifest.get("hash"):
@@ -145,7 +173,7 @@ class DynamicBuilder(object):
                 "Models are already up-to-date; skipping dynamic unload.",
                 name=request.name,
             )
-            return self.NOTHING_TO_DO
+            return self.SUCCESS_NOTHING_CHANGED
 
         manifest = self.save_models(request, state="unload", hash=hash)
 
@@ -156,7 +184,7 @@ class DynamicBuilder(object):
 
         log.info("Finished UnloadModels request", name=request.name)
 
-        return self.SOMETHING_CHANGED
+        return self.SUCCESS
 
     def generate_request_hash(self, request, state):
         # TODO: could we hash the request rather than individually hashing the subcomponents of the request?
