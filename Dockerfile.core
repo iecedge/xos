@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # xosproject/xos-core
-FROM xosproject/alpine-grpc-base:0.9.1
+FROM iecedge/alpine-grpc-base:0.9.1
 
 # Install libraries and python requirements
 COPY requirements.txt /tmp/requirements.txt
@@ -63,3 +63,4 @@ LABEL org.label-schema.schema-version=1.0 \
       org.label-schema.vcs-ref=$org_label_schema_vcs_ref \
       org.label-schema.build-date=$org_label_schema_build_date \
       org.opencord.vcs-commit-date=$org_opencord_vcs_commit_date
+
